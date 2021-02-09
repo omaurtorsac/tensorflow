@@ -20,7 +20,6 @@ from __future__ import print_function
 
 import argparse
 import errno
-import glob
 import os
 import platform
 import re
@@ -47,7 +46,7 @@ _TF_BAZELRC_FILENAME = '.tf_configure.bazelrc'
 _TF_WORKSPACE_ROOT = ''
 _TF_BAZELRC = ''
 _TF_CURRENT_BAZEL_VERSION = None
-_TF_MIN_BAZEL_VERSION = '3.7.2'
+_TF_MIN_BAZEL_VERSION = '3.1.0'
 _TF_MAX_BAZEL_VERSION = '3.99.0'
 
 NCCL_LIB_PATHS = [
@@ -56,15 +55,16 @@ NCCL_LIB_PATHS = [
 
 # List of files to configure when building Bazel on Apple platforms.
 APPLE_BAZEL_FILES = [
-    'tensorflow/lite/ios/BUILD', 'tensorflow/lite/objc/BUILD',
-    'tensorflow/lite/swift/BUILD',
+    'tensorflow/lite/experimental/ios/BUILD',
+    'tensorflow/lite/experimental/objc/BUILD',
+    'tensorflow/lite/experimental/swift/BUILD',
     'tensorflow/lite/tools/benchmark/experimental/ios/BUILD'
 ]
 
 # List of files to move when building for iOS.
 IOS_FILES = [
-    'tensorflow/lite/objc/TensorFlowLiteObjC.podspec',
-    'tensorflow/lite/swift/TensorFlowLiteSwift.podspec',
+    'tensorflow/lite/experimental/objc/TensorFlowLiteObjC.podspec',
+    'tensorflow/lite/experimental/swift/TensorFlowLiteSwift.podspec',
 ]
 
 
@@ -1171,15 +1171,41 @@ def set_system_libs_flag(environ_cp):
       write_to_bazelrc('build --define=%s=%s' % (varname, environ_cp[varname]))
 
 
+def is_reduced_optimize_huge_functions_available(environ_cp):
+  """Check to see if the system supports /d2ReducedOptimizeHugeFunctions.
+
+  The above compiler flag is a new compiler flag introduced to the Visual Studio
+  compiler in version 16.4 (available in Visual Studio 2019, Preview edition
+  only, as of 2019-11-19). TensorFlow needs this flag to massively reduce
+  compile times, but until 16.4 is officially released, we can't depend on it.
+
+  See also
+  https://groups.google.com/a/tensorflow.org/d/topic/build/SsW98Eo7l3o/discussion
+
+  Because it's very annoying to check this manually (to check the MSVC installed
+  versions, you need to use the registry, and it's not clear if Bazel will be
+  using that install version anyway), we expect enviroments who know they may
+  use this flag to export TF_VC_VERSION=16.4
+
+  TODO(angerson, gunan): Remove this function when TensorFlow's minimum VS
+  version is upgraded to 16.4.
+
+  Arguments:
+    environ_cp: Environment of the current execution
+
+  Returns:
+    boolean, whether or not /d2ReducedOptimizeHugeFunctions is available on this
+    machine.
+  """
+  return float(environ_cp.get('TF_VC_VERSION', '0')) >= 16.4
+
+
 def set_windows_build_flags(environ_cp):
   """Set Windows specific build options."""
-
-  # First available in VS 16.4. Speeds up Windows compile times by a lot. See
-  # https://groups.google.com/a/tensorflow.org/d/topic/build/SsW98Eo7l3o/discussion
-  # pylint: disable=line-too-long
-  write_to_bazelrc(
-      'build --copt=/d2ReducedOptimizeHugeFunctions --host_copt=/d2ReducedOptimizeHugeFunctions'
-  )
+  if is_reduced_optimize_huge_functions_available(environ_cp):
+    write_to_bazelrc(
+        'build --copt=/d2ReducedOptimizeHugeFunctions --host_copt=/d2ReducedOptimizeHugeFunctions'
+    )
 
   if get_var(
       environ_cp, 'TF_OVERRIDE_EIGEN_STRONG_INLINE', 'Eigen strong inline',
@@ -1239,12 +1265,9 @@ def validate_cuda_config(environ_cp):
     if environ_cp.get('TF_NCCL_VERSION', None):
       cuda_libraries.append('nccl')
 
-  paths = glob.glob('**/third_party/gpus/find_cuda_config.py', recursive=True)
-  if not paths:
-    raise FileNotFoundError(
-        "Can't find 'find_cuda_config.py' script inside working directory")
   proc = subprocess.Popen(
-      [environ_cp['PYTHON_BIN_PATH'], paths[0]] + cuda_libraries,
+      [environ_cp['PYTHON_BIN_PATH'], 'third_party/gpus/find_cuda_config.py'] +
+      cuda_libraries,
       stdout=subprocess.PIPE,
       env=maybe_encode_env(environ_cp))
 
@@ -1341,6 +1364,7 @@ def main():
 
   if (environ_cp.get('TF_NEED_ROCM') == '1' and environ_cp.get('ROCM_PATH')):
     write_action_env_to_bazelrc('ROCM_PATH', environ_cp.get('ROCM_PATH'))
+    write_action_env_to_bazelrc('ROCM_ROOT', environ_cp.get('ROCM_PATH'))
 
   if ((environ_cp.get('TF_NEED_ROCM') == '1') and
       (environ_cp.get('TF_ENABLE_MLIR_GENERATED_GPU_KERNELS') == '1')):
@@ -1463,6 +1487,7 @@ def main():
   config_info_line('mkl', 'Build with MKL support.')
   config_info_line('mkl_aarch64', 'Build with oneDNN support for Aarch64.')
   config_info_line('monolithic', 'Config for mostly static monolithic build.')
+  config_info_line('ngraph', 'Build with Intel nGraph support.')
   config_info_line('numa', 'Build with NUMA support.')
   config_info_line(
       'dynamic_kernels',

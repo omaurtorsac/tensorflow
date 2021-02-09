@@ -3,15 +3,8 @@
 # learning applications.
 
 load("@bazel_skylib//lib:selects.bzl", "selects")
-load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "bool_setting")
-load(
-    "//tensorflow:tensorflow.bzl",
-    "VERSION",
-    "if_oss",
-    "tf_cc_shared_object",
-    "tf_custom_op_library_additional_deps_impl",
-    "tf_native_cc_binary",
-)
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
+load("//tensorflow:tensorflow.bzl", "VERSION", "tf_cc_shared_object", "tf_custom_op_library_additional_deps_impl", "tf_native_cc_binary")
 load(
     "//tensorflow/core/platform:build_config.bzl",
     "tf_additional_binary_deps",
@@ -29,6 +22,10 @@ load(
 load(
     "//tensorflow/python/tools/api/generator:api_init_files_v1.bzl",
     "TENSORFLOW_API_INIT_FILES_V1",  # @unused
+)
+load(
+    "//third_party/ngraph:build_defs.bzl",
+    "if_ngraph",
 )
 load(
     "//third_party/mkl:build_defs.bzl",
@@ -75,15 +72,7 @@ TENSORFLOW_API_INIT_FILES_V1 = (
 # which requires restricted licenses to be avoided.
 config_setting(
     name = "no_lgpl_deps",
-    define_values = {"__TENSORFLOW_NO_LGPL_DEPS__": "1"},
-    visibility = ["//visibility:public"],
-)
-
-# Config setting that disables the default logger, only logging
-# to registered TFLogSinks
-config_setting(
-    name = "no_default_logger",
-    define_values = {"no_default_logger": "true"},
+    values = {"define": "__TENSORFLOW_NO_LGPL_DEPS__=1"},
     visibility = ["//visibility:public"],
 )
 
@@ -120,29 +109,6 @@ config_setting(
     },
     visibility = ["//visibility:public"],
 )
-
-# copybara:uncomment_begin(google-only)
-# config_setting(
-#     name = "chromiumos_x86_64",
-#     flag_values = {"//tools/cpp:cc_target_os": "chromiumos"},
-#     values = {"cpu": "k8"},
-#     visibility = ["//visibility:public"],
-# )
-#
-# config_setting(
-#     name = "chromiumos_arm64",
-#     flag_values = {"//tools/cpp:cc_target_os": "chromiumos"},
-#     values = {"cpu": "arm"},
-#     visibility = ["//visibility:public"],
-# )
-#
-# config_setting(
-#     name = "chromiumos_armv7",
-#     flag_values = {"//tools/cpp:cc_target_os": "chromiumos"},
-#     values = {"cpu": "armeabi-v7a"},
-#     visibility = ["//visibility:public"],
-# )
-# copybara:uncomment_end
 
 config_setting(
     name = "emscripten",
@@ -208,29 +174,11 @@ config_setting(
 )
 
 config_setting(
-    name = "macos_x86_64",
+    name = "macos",
     values = {
         "apple_platform_type": "macos",
         "cpu": "darwin",
     },
-    visibility = ["//visibility:public"],
-)
-
-config_setting(
-    name = "macos_arm64",
-    values = {
-        "apple_platform_type": "macos",
-        "cpu": "darwin_arm64",
-    },
-    visibility = ["//visibility:public"],
-)
-
-selects.config_setting_group(
-    name = "macos",
-    match_any = [
-        ":macos_x86_64",
-        ":macos_arm64",
-    ],
     visibility = ["//visibility:public"],
 )
 
@@ -294,12 +242,6 @@ config_setting(
 config_setting(
     name = "linux_mips64",
     values = {"cpu": "mips64"},
-    visibility = ["//visibility:public"],
-)
-
-config_setting(
-    name = "linux_riscv64",
-    values = {"cpu": "riscv64"},
     visibility = ["//visibility:public"],
 )
 
@@ -434,12 +376,14 @@ config_setting(
 # due to limitations in nested select() statements.
 config_setting(
     name = "framework_shared_object",
-    define_values = {"framework_shared_object": "true"},
+    define_values = {
+        "framework_shared_object": "true",
+    },
     visibility = ["//visibility:public"],
 )
 
 config_setting(
-    name = "macos_x86_64_with_framework_shared_object",
+    name = "macos_with_framework_shared_object",
     define_values = {
         "framework_shared_object": "true",
     },
@@ -451,46 +395,19 @@ config_setting(
 )
 
 config_setting(
-    name = "macos_arm64_with_framework_shared_object",
-    define_values = {
-        "framework_shared_object": "true",
-    },
-    values = {
-        "apple_platform_type": "macos",
-        "cpu": "darwin_arm64",
-    },
-    visibility = ["//visibility:public"],
-)
-
-selects.config_setting_group(
-    name = "macos_with_framework_shared_object",
-    match_any = [
-        ":macos_x86_64_with_framework_shared_object",
-        ":macos_arm64_with_framework_shared_object",
-    ],
-)
-
-config_setting(
     name = "using_cuda_clang",
-    define_values = {"using_cuda_clang": "true"},
+    define_values = {
+        "using_cuda_clang": "true",
+    },
 )
 
-# Config setting to use in select()s to distinguish open source build from
-# google internal build on configurable attributes.
-#
-# For non-configurable distinction between OSS and Google builds, see
-# `if_oss()` and `if_google()` macros in tensorflow.bzl.
+# Flag to indicate open source build, .bazelrc always has it set to be true
 config_setting(
     name = "oss",
-    flag_values = {":oss_setting": "True"},
+    define_values = {
+        "open_source_build": "true",
+    },
     visibility = ["//visibility:public"],
-)
-
-# Non-configurable setting to indicate open source build.
-bool_setting(
-    name = "oss_setting",
-    build_setting_default = if_oss(True, False),
-    visibility = ["//visibility:private"],
 )
 
 config_setting(
@@ -501,12 +418,12 @@ config_setting(
     },
 )
 
-selects.config_setting_group(
+config_setting(
     name = "build_oss_using_cuda_clang",
-    match_all = [
-        ":using_cuda_clang",
-        ":oss",
-    ],
+    define_values = {
+        "using_cuda_clang": "true",
+        "open_source_build": "true",
+    },
 )
 
 # Setting to use when loading kernels dynamically
@@ -521,7 +438,9 @@ config_setting(
 
 config_setting(
     name = "using_cuda_nvcc",
-    define_values = {"using_cuda_nvcc": "true"},
+    define_values = {
+        "using_cuda_nvcc": "true",
+    },
 )
 
 config_setting(
@@ -532,22 +451,32 @@ config_setting(
     },
 )
 
-selects.config_setting_group(
+config_setting(
     name = "build_oss_using_cuda_nvcc",
-    match_all = [
-        ":using_cuda_nvcc",
-        ":oss",
-    ],
+    define_values = {
+        "using_cuda_nvcc": "true",
+        "open_source_build": "true",
+    },
 )
 
 config_setting(
     name = "using_rocm_hipcc",
-    define_values = {"using_rocm_hipcc": "true"},
+    define_values = {
+        "using_rocm_hipcc": "true",
+    },
 )
 
 config_setting(
     name = "override_eigen_strong_inline",
-    define_values = {"override_eigen_strong_inline": "true"},
+    values = {"define": "override_eigen_strong_inline=true"},
+    visibility = ["//visibility:public"],
+)
+
+# This flag is set from the configure step when the user selects with nGraph option.
+# By default it should be false
+config_setting(
+    name = "with_ngraph_support",
+    values = {"define": "with_ngraph_support=true"},
     visibility = ["//visibility:public"],
 )
 
@@ -571,28 +500,28 @@ config_setting(
 # This flag enables experimental MLIR support.
 config_setting(
     name = "with_mlir_support",
-    define_values = {"with_mlir_support": "true"},
+    values = {"define": "with_mlir_support=true"},
     visibility = ["//visibility:public"],
 )
 
 # This flag forcibly enables experimental MLIR bridge support.
 config_setting(
     name = "enable_mlir_bridge",
-    define_values = {"enable_mlir_bridge": "true"},
+    values = {"define": "enable_mlir_bridge=true"},
     visibility = ["//visibility:public"],
 )
 
 # This flag forcibly disables experimental MLIR bridge support.
 config_setting(
     name = "disable_mlir_bridge",
-    define_values = {"enable_mlir_bridge": "false"},
+    values = {"define": "enable_mlir_bridge=false"},
     visibility = ["//visibility:public"],
 )
 
 # This flag enables experimental TPU support
 config_setting(
     name = "with_tpu_support",
-    define_values = {"with_tpu_support": "true"},
+    values = {"define": "with_tpu_support=true"},
     visibility = ["//visibility:public"],
 )
 
@@ -608,34 +537,15 @@ selects.config_setting_group(
     ],
 )
 
-# This flag disables all google production dependencies, intended for
-# applications run with non-prod environment.
-# TODO(timshen): Currently this option only disables some dependencies.
-# See b/122528503.
-# copybara:uncomment_begin(google-only)
-# config_setting(
-#     name = "no_prod_deps",
-#     define_values = {"tf_no_prod_deps": "1"},
-# )
-#
-# config_setting(
-#     name = "no_prod_deps_cuda",
-#     define_values = {
-#         "tf_no_prod_deps": "1",
-#         "GOOGLE_CUDA_COMPILER": "clang",
-#     },
-# )
-# copybara:uncomment_end
-
 config_setting(
     name = "lite_protos_legacy",
-    define_values = {"TENSORFLOW_PROTOS": "lite"},
+    values = {"define": "TENSORFLOW_PROTOS=lite"},
     visibility = ["//visibility:private"],
 )
 
 config_setting(
     name = "full_protos",
-    define_values = {"TENSORFLOW_PROTOS": "full"},
+    values = {"define": "TENSORFLOW_PROTOS=full"},
     visibility = ["//visibility:public"],
 )
 
@@ -659,14 +569,6 @@ selects.config_setting_group(
         ":mobile",
     ],
 )
-
-# copybara:uncomment_begin(google-only)
-# config_setting(
-#     name = "portable_proto_force_third_party",
-#     define_values = {"PORTABLE_PROTO_TRANSITION_MODE": "third_party"},
-#     visibility = ["//visibility:public"],
-# )
-# copybara:uncomment_end
 
 # 'enable_registration_v2' opts-in to a different implementation of op and
 # kernel registration - REGISTER_OP, REGISTER_KERNEL_BUILDER, etc.
@@ -698,12 +600,9 @@ config_setting(
 # DO NOT ADD ANY NEW EXCEPTIONS TO THIS LIST!
 # Instead, please use public APIs or public build rules TF provides.
 # If you need functionality that is not exposed, we will work with you to expand our public APIs.
-# TODO(b/173549186): Move Google-internal TF code out of learning/brain
 package_group(
     name = "internal",
     packages = [
-        "//learning/brain/keras/...",
-        "//learning/brain/mlir/...",
         "//learning/lib/ami/simple_ml/...",
         "//tensorflow/...",
     ],
@@ -740,7 +639,7 @@ bzl_library(
         "//tensorflow/core/platform/default:cuda_build_defs_bzl",
         "//third_party/mkl:build_defs_bzl",
         "//third_party/mkl_dnn:build_defs_bzl",
-        "@bazel_skylib//lib:new_sets",
+        "//third_party/ngraph:build_defs_bzl",
         "@bazel_skylib//rules:common_settings",
         "@local_config_cuda//cuda:build_defs_bzl",
         "@local_config_rocm//rocm:build_defs_bzl",
@@ -826,9 +725,7 @@ tf_cc_shared_object(
     name = "tensorflow_framework",
     framework_so = [],
     linkopts = select({
-        "//tensorflow:macos": [
-            "-Wl,-rename_section,__TEXT,text_env,__TEXT,__text",
-        ],
+        "//tensorflow:macos": [],
         "//tensorflow:windows": [],
         "//tensorflow:freebsd": [
             "-Wl,--version-script,$(location //tensorflow:tf_framework_version_script.lds)",
@@ -844,9 +741,8 @@ tf_cc_shared_object(
     visibility = ["//visibility:public"],
     deps = [
         "//tensorflow/c/experimental/filesystem:filesystem_interface",
-        "//tensorflow/c/experimental/stream_executor:stream_executor",
-        "//tensorflow/c:env",
-        "//tensorflow/c:kernels",
+        "//tensorflow/c/experimental/stream_executor:stream_executor_hdrs",
+        "//tensorflow/c:kernels_hdrs",
         "//tensorflow/c:logging",
         "//tensorflow/c:ops_hdrs",
         "//tensorflow/cc/saved_model:loader_lite_impl",
@@ -903,12 +799,12 @@ tf_cc_shared_object(
     per_os_targets = True,
     soversion = VERSION,
     visibility = ["//visibility:public"],
-    # copybara:comment_begin(OSS Windows only: DEF file for exported symbols)
+    # add win_def_file for tensorflow
     win_def_file = select({
+        # We need this DEF file to properly export symbols on Windows
         "//tensorflow:windows": ":tensorflow_filtered_def_file",
         "//conditions:default": None,
     }),
-    # copybara:comment_end
     deps = [
         "//tensorflow/c:c_api",
         "//tensorflow/c:c_api_experimental",
@@ -936,12 +832,12 @@ tf_cc_shared_object(
     per_os_targets = True,
     soversion = VERSION,
     visibility = ["//visibility:public"],
-    # copybara:comment_begin(OSS Windows only: DEF file for exported symbols)
+    # add win_def_file for tensorflow_cc
     win_def_file = select({
+        # We need this DEF file to properly export symbols on Windows
         "//tensorflow:windows": ":tensorflow_filtered_def_file",
         "//conditions:default": None,
     }),
-    # copybara:comment_end
     deps = [
         "//tensorflow:tf_exported_symbols.lds",
         "//tensorflow:tf_version_script.lds",
@@ -952,7 +848,7 @@ tf_cc_shared_object(
         "//tensorflow/cc:scope",
         "//tensorflow/cc/profiler",
         "//tensorflow/core:tensorflow",
-    ],
+    ] + if_ngraph(["@ngraph_tf//:ngraph_tf"]),
 )
 
 # ** Targets for Windows build (start) **
@@ -1158,7 +1054,7 @@ gen_api_init_files(
 
 py_library(
     name = "tensorflow_py",
-    srcs_version = "PY3",
+    srcs_version = "PY2AND3",
     visibility = ["//visibility:public"],
     deps = select({
         "api_version_2": [],
@@ -1180,7 +1076,7 @@ py_library(
         "//tensorflow/python/keras/api:keras_python_api_gen_compat_v1",
         "//tensorflow/python/keras/api:keras_python_api_gen_compat_v2",
     ],
-    srcs_version = "PY3",
+    srcs_version = "PY2AND3",
     visibility = ["//visibility:public"],
     deps = ["//tensorflow/python:no_contrib"],
 )

@@ -66,11 +66,11 @@ class MutableHashTableOfScalars final : public LookupInterface {
 
     tf_shared_lock l(mu_);
     for (int64 i = 0; i < key_values.size(); ++i) {
-      // is_full_size_default is true:
-      //   Each key has an independent default value, key_values(i)
+      // is_full_size_default is true: 
+      //   Each key has an independent default value, key_values(i) 
       //   corresponding uses default_flat(i) as its default value.
-      //
-      // is_full_size_default is false:
+      // 
+      // is_full_size_default is false: 
       //   All keys will share the default_flat(0) as default value.
       value_values(i) = gtl::FindWithDefault(
           table_, SubtleMustCopyIfIntegral(key_values(i)),
@@ -202,11 +202,11 @@ class MutableHashTableOfTensors final : public LookupInterface {
           value_values(i, j) = value_vec->at(j);
         }
       } else {
-        // is_full_size_default is true:
-        //   Each key has an independent default value, key_values(i)
+        // is_full_size_default is true: 
+        //   Each key has an independent default value, key_values(i) 
         //   corresponding uses default_flat(i) as its default value.
         //
-        // is_full_size_default is false:
+        // is_full_size_default is false: 
         //   All keys will share the default_flat(0) as default value.
         for (int64 j = 0; j < value_dim; j++) {
           value_values(i, j) =

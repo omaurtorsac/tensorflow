@@ -154,7 +154,6 @@ load("@io_bazel_rules_closure//closure:defs.bzl", "closure_proto_library")
 load(
     "//third_party/mkl:build_defs.bzl",
     "if_mkl",
-    "mkl_deps",
 )
 # Placeholder for Google-internal load statements.
 
@@ -2937,7 +2936,7 @@ tf_cuda_library(
     ] + if_static(
         extra_deps = ["@com_google_protobuf//:protobuf"],
         otherwise = ["@com_google_protobuf//:protobuf_headers"],
-    ) + mkl_deps(),
+    ),
     alwayslink = 1,
 )
 

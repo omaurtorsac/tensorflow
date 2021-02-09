@@ -18,15 +18,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from typing import TypeVar
-
-T = TypeVar("T")
-
-
 _DEPRECATED = "_tf_docs_deprecated"
 
 
-def set_deprecated(obj: T) -> T:
+def set_deprecated(obj):
   """Explicitly tag an object as deprecated for the doc generator."""
   setattr(obj, _DEPRECATED, None)
   return obj
@@ -35,7 +30,7 @@ def set_deprecated(obj: T) -> T:
 _DO_NOT_DOC = "_tf_docs_do_not_document"
 
 
-def do_not_generate_docs(obj: T) -> T:
+def do_not_generate_docs(obj):
   """A decorator: Do not generate docs for this object.
 
   For example the following classes:
@@ -116,7 +111,7 @@ def do_not_generate_docs(obj: T) -> T:
 _DO_NOT_DOC_INHERITABLE = "_tf_docs_do_not_doc_inheritable"
 
 
-def do_not_doc_inheritable(obj: T) -> T:
+def do_not_doc_inheritable(obj):
   """A decorator: Do not generate docs for this method.
 
   This version of the decorator is "inherited" by subclasses. No docs will be
@@ -179,7 +174,7 @@ def do_not_doc_inheritable(obj: T) -> T:
 _FOR_SUBCLASS_IMPLEMENTERS = "_tf_docs_tools_for_subclass_implementers"
 
 
-def for_subclass_implementers(obj: T) -> T:
+def for_subclass_implementers(obj):
   """A decorator: Only generate docs for this method in the defining class.
 
   Also group this method's docs with and `@abstractmethod` in the class's docs.
@@ -259,7 +254,7 @@ do_not_doc_in_subclasses = for_subclass_implementers
 _DOC_PRIVATE = "_tf_docs_doc_private"
 
 
-def doc_private(obj: T) -> T:
+def doc_private(obj):
   """A decorator: Generates docs for private methods/functions.
 
   For example:
@@ -285,69 +280,4 @@ def doc_private(obj: T) -> T:
   """
 
   setattr(obj, _DOC_PRIVATE, None)
-  return obj
-
-
-_DOC_IN_CURRENT_AND_SUBCLASSES = "_tf_docs_doc_in_current_and_subclasses"
-
-
-def doc_in_current_and_subclasses(obj: T) -> T:
-  """Overrides `do_not_doc_in_subclasses` decorator.
-
-  If this decorator is set on a child class's method whose parent's method
-  contains `do_not_doc_in_subclasses`, then that will be overriden and the
-  child method will get documented. All classes inherting from the child will
-  also document that method.
-
-  For example:
-
-  ```
-  class Parent:
-    @do_not_doc_in_subclasses
-    def method1(self):
-      pass
-    def method2(self):
-      pass
-
-  class Child1(Parent):
-    @doc_in_current_and_subclasses
-    def method1(self):
-      pass
-    def method2(self):
-      pass
-
-  class Child2(Parent):
-    def method1(self):
-      pass
-    def method2(self):
-      pass
-
-  class Child11(Child1):
-    pass
-  ```
-
-  This will produce the following docs:
-
-  ```
-  /Parent.md
-    # method1
-    # method2
-  /Child1.md
-    # method1
-    # method2
-  /Child2.md
-    # method2
-  /Child11.md
-    # method1
-    # method2
-  ```
-
-  Args:
-    obj: The class-attribute to hide from the generated docs.
-
-  Returns:
-    obj
-  """
-
-  setattr(obj, _DOC_IN_CURRENT_AND_SUBCLASSES, None)
   return obj

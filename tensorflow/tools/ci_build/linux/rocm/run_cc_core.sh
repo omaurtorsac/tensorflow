@@ -46,8 +46,8 @@ yes "" | $PYTHON_BIN_PATH configure.py
 bazel test \
       --config=rocm \
       -k \
-      --test_tag_filters=-no_oss,-oss_serial,-no_gpu,-no_rocm,-benchmark-test,-rocm_multi_gpu,-v1only \
-      --test_lang_filters=py \
+      --test_tag_filters=-no_oss,-oss_serial,-no_gpu,-no_rocm,-benchmark-test,-multi_gpu,-v1only \
+      --test_lang_filters=cc \
       --jobs=${N_BUILD_JOBS} \
       --local_test_jobs=${N_TEST_JOBS} \
       --test_env=TF_GPU_COUNT=$TF_GPU_COUNT \
@@ -56,11 +56,26 @@ bazel test \
       --build_tests_only \
       --test_output=errors \
       --test_sharding_strategy=disabled \
-      --test_size_filters=small,medium \
+      --test_size_filters=small,medium,large \
       --run_under=//tensorflow/tools/ci_build/gpu_build:parallel_gpu_execute \
       -- \
       //tensorflow/... \
       -//tensorflow/compiler/... \
+      -//tensorflow/lite/... \
       -//tensorflow/python/integration_testing/... \
       -//tensorflow/core/tpu/... \
-      -//tensorflow/lite/...
+&& bazel test \
+      --config=rocm \
+      -k \
+      --test_tag_filters=gpu \
+      --jobs=${N_BUILD_JOBS} \
+      --local_test_jobs=${N_TEST_JOBS} \
+      --test_env=TF_GPU_COUNT=$TF_GPU_COUNT \
+      --test_env=TF_TESTS_PER_GPU=$TF_TESTS_PER_GPU \
+      --test_timeout 600,900,2400,7200 \
+      --build_tests_only \
+      --test_output=errors \
+      --test_sharding_strategy=disabled \
+      --test_size_filters=small,medium,large \
+      -- \
+      //tensorflow/core/nccl:nccl_manager_test

@@ -19,8 +19,8 @@ from __future__ import print_function
 
 import threading
 
-from tensorflow.python.distribute import distribute_utils
 from tensorflow.python.distribute import ps_values as ps_distribute_values
+from tensorflow.python.distribute import values as distribute_values
 from tensorflow.python.eager import context
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
@@ -32,19 +32,6 @@ from tensorflow.python.types import core
 # _autocast_dtype.dtype is the dtype AutoCastVariables should be cast to, or
 # None if AutoCastVariables should not be cast.
 _autocast_dtype = threading.local()
-
-
-def numpy_text(tensor, is_repr=False):
-  """Human readable representation of a tensor's numpy value."""
-  if tensor.dtype.is_numpy_compatible:
-    # pylint: disable=protected-access
-    text = repr(tensor._numpy()) if is_repr else str(tensor._numpy())
-    # pylint: enable=protected-access
-  else:
-    text = '<unprintable>'
-  if '\n' in text:
-    text = '\n' + text
-  return text
 
 
 class AutoCastVariable(variables.Variable, core.Tensor):
@@ -137,14 +124,10 @@ class AutoCastVariable(variables.Variable, core.Tensor):
 
   def _dense_var_to_tensor(self, dtype=None, name=None, as_ref=False):
     """Converts this variable to a tensor."""
-    if as_ref:
-      # This ValueError should not occur in practice since it is impossible to
-      # pass as_ref=True using public APIs.
-      raise ValueError('Cannot convert AutoCastVariable to a tensor if '
-                       'as_ref=True is passed to convert_to_tensor')
     if not self._should_cast():
-      return ops.convert_to_tensor_v2_with_dispatch(self._variable, dtype=dtype,
-                                                    name=name)
+      return ops.convert_to_tensor(self._variable, dtype, name, as_ref)
+    # TODO(reedwm): Support as_ref?
+    assert not as_ref
     if dtype is not None and not dtype.is_compatible_with(self._cast_dtype):
       raise ValueError(
           'Incompatible type conversion requested to type {!r} for '
@@ -164,7 +147,7 @@ class AutoCastVariable(variables.Variable, core.Tensor):
                   'dtype={v.dtype.name} dtype_to_cast_to={v._cast_dtype.name}, '
                   'numpy={np_repr}>')
       return repr_str.format(
-          v=self, np_repr=numpy_text(self.read_value(), is_repr=True))
+          v=self, np_repr=ops.numpy_text(self.read_value(), is_repr=True))
     else:
       repr_str = ("<AutoCastVariable '{v.name}' shape={v.shape} "
                   'dtype={v.dtype.name} dtype_to_cast_to={v._cast_dtype.name}>')
@@ -513,8 +496,8 @@ def create_autocast_variable(variable):
   Returns:
     An AutoCastVariable that wraps the variable.
   """
-  if (not distribute_utils.is_distributed_variable(variable) and
-      not isinstance(variable, ps_distribute_values.AggregatingVariable)):
+  if not isinstance(variable, (distribute_values.DistributedVariable,
+                               ps_distribute_values.AggregatingVariable)):
     return AutoCastVariable(variable)
 
   class AutoCastDistributedVariable(AutoCastVariable, variable.__class__):
@@ -561,3 +544,5 @@ class enable_auto_cast_variables(object):  # pylint:disable=invalid-name
 
   def __exit__(self, type_arg, value_arg, traceback_arg):
     _autocast_dtype.dtype = self._prev_dtype
+
+

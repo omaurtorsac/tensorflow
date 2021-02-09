@@ -36,12 +36,9 @@ REGISTER_KERNEL_BUILDER(
 class BoostedTreesCreateEnsembleOp : public OpKernel {
  public:
   explicit BoostedTreesCreateEnsembleOp(OpKernelConstruction* context)
-      : OpKernel(context) {
-    std::cerr << "BoostedTreesCreateEnsembleOp::<constructor>\n";
-      }
+      : OpKernel(context) {}
 
   void Compute(OpKernelContext* context) override {
-    std::cerr << "BoostedTreesCreateEnsembleOp::Compute\n";
     // Get the stamp token.
     const Tensor* stamp_token_t;
     OP_REQUIRES_OK(context, context->input("stamp_token", &stamp_token_t));
@@ -53,26 +50,13 @@ class BoostedTreesCreateEnsembleOp : public OpKernel {
                                            &tree_ensemble_serialized_t));
     std::unique_ptr<BoostedTreesEnsembleResource> result(
         new BoostedTreesEnsembleResource());
-    tstring tst = tree_ensemble_serialized_t->scalar<tstring>()();
-    std::cerr << "Got a string of " << tst.size() << " characters, of type " << tst.type() << "\n";
-    const char* tst_data = tst.data();
-    for (int i = 0; i < tst.size(); i++) {
-      fprintf(stderr, "%02x ", (int)tst_data[i]);
-      if (i % 16 == 15)
-        fprintf(stderr, "\n");
-      else if (i % 8 == 7)
-        fprintf(stderr, "  ");
-    }
-    fprintf(stderr, "\n");
-    std::cerr << "BoostedTreesCreateEnsembleOp::Compute V\n";
-    if (!result->InitFromSerialized(tst, stamp_token)) {
-      std::cerr << "BoostedTreesCreateEnsembleOp::Compute ^(1)\n";
+    if (!result->InitFromSerialized(
+            tree_ensemble_serialized_t->scalar<tstring>()(), stamp_token)) {
       result->Unref();
       OP_REQUIRES(
           context, false,
           errors::InvalidArgument("Unable to parse tree ensemble proto."));
     }
-    std::cerr << "BoostedTreesCreateEnsembleOp::Compute ^(2)\n";
 
     // Only create one, if one does not exist already. Report status for all
     // other exceptions.

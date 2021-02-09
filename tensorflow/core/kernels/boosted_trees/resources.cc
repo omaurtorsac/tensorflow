@@ -36,11 +36,25 @@ string BoostedTreesEnsembleResource::DebugString() const {
 
 bool BoostedTreesEnsembleResource::InitFromSerialized(const string& serialized,
                                                       const int64 stamp_token) {
+  std::cerr << "BoostedTreesEnsembleResource::InitFromSerialized()\n";
+  std::cerr << "Got a string of " << serialized.size() << " characters\n";
+  const char* serialized_data = serialized.data();
+  for (int i = 0; i < serialized.size(); i++) {
+    fprintf(stderr, "%02x ", (int)serialized_data[i]);
+    if (i % 16 == 15)
+      fprintf(stderr, "\n");
+    else if (i % 8 == 7)
+      fprintf(stderr, "  ");
+  }
+  fprintf(stderr, "\n");
   CHECK_EQ(stamp(), -1) << "Must Reset before Init.";
+  std::cerr << "ParseProtoUnlimited...\n";
   if (ParseProtoUnlimited(tree_ensemble_, serialized)) {
+    std::cerr << "ParseProtoUnlimited...GOOD\n";
     set_stamp(stamp_token);
     return true;
   }
+  std::cerr << "ParseProtoUnlimited...BAD\n";
   return false;
 }
 

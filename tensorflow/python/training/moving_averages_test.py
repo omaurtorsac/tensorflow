@@ -18,9 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import numpy as np
-
-from tensorflow.compiler.xla.experimental.xla_sharding import xla_sharding
+from tensorflow.python import pywrap_tensorflow
 from tensorflow.python.eager import context
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import dtypes
@@ -133,6 +131,7 @@ class MovingAveragesTest(test.TestCase):
 
   @test_util.deprecated_graph_mode_only
   def testWeightedMovingAverageBfloat16(self):
+    bfloat16 = pywrap_tensorflow.TF_bfloat16_type()
     with self.cached_session() as sess:
       decay = 0.5
       weight = array_ops.placeholder(dtypes.bfloat16, [])
@@ -155,8 +154,7 @@ class MovingAveragesTest(test.TestCase):
       wma_array = sess.run(wma, feed_dict={val: val_2, weight: weight_2})
       numerator_2 = numerator_1 * decay + val_2 * weight_2 * (1.0 - decay)
       denominator_2 = denominator_1 * decay + weight_2 * (1.0 - decay)
-      self.assertAllClose(
-          dtypes._np_bfloat16(numerator_2 / denominator_2), wma_array)
+      self.assertAllClose(bfloat16(numerator_2 / denominator_2), wma_array)
 
 
 def _Repeat(value, dim):
@@ -493,20 +491,6 @@ class ExponentialMovingAverageTest(test.TestCase):
       # both get added to vars_to_restore.
       self.assertEqual(len(vars_to_restore), 1)
       self.assertIn("v/foo_avg", vars_to_restore)
-
-  @test_util.deprecated_graph_mode_only
-  def testCopyXlaSharding(self):
-    ema = moving_averages.ExponentialMovingAverage(0.25, name="foo_avg")
-    v = variables.Variable(_Repeat(10.0, 2), name="v")
-    self.assertIsNone(xla_sharding.get_tensor_sharding(v))
-    v = xla_sharding.mesh_split(v, np.array([0, 1]), [0], use_sharding_op=False)
-    self.assertIsNotNone(xla_sharding.get_tensor_sharding(v))
-    self.evaluate(variables.global_variables_initializer())
-    ema.apply([v])
-    avg = ema.average(v)
-    self.assertEqual(
-        xla_sharding.get_tensor_sharding(v),
-        xla_sharding.get_tensor_sharding(avg))
 
 
 if __name__ == "__main__":
